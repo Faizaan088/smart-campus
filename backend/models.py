@@ -19,4 +19,5 @@ class Complaint(Base):
     priority=Column(String)
     user_id=Column(Integer,ForeignKey("users.id"))
     created_at=Column(String)
+    suggested_solution=Column(String , nullable=True)
     user = relationship("User",back_populates="complaints")
