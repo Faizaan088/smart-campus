@@ -2,6 +2,10 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Optional
 import datetime
+from database import engine ,Base ,Sessionlocal
+import models
+from models import User , Complaint
+Base.metadata.create_all(bind=engine)
 class ComplaintCreate(BaseModel):
     title: str
     description: str
@@ -33,11 +37,29 @@ complaints =   [
         } ]
 @app.get("/complaints")
 def get_complaints():
-    return {
-        "complaints":complaints
-    }
+    session=Sessionlocal()
+    que=session.query(Complaint)
+    com=que.all()
+    res = []
+    for c in com:
+        res.append({
+            "id": c.id,
+            "title": c.title,
+            "description": c.description,
+            "status": c.status,
+            "category": c.category,
+            "priority": c.priority,
+            "user_id": c.user_id,
+            "created_at": c.created_at
+        })
+
+    session.close()
+    return {"complaints": res}
 @app.get("/complaints/{complaint_id}")
 def get_complaint(complaint_id:int):
+    session=Sessionlocal()
+    que=session.query(Complaint)
+    com=que.all()
     for complaint in complaints:
         if complaint["id"] == complaint_id:
             return {
