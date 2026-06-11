@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI , HTTPException
 from pydantic import BaseModel
 from typing import Optional
 import datetime
@@ -83,7 +83,10 @@ def get_complaint(complaint_id:int):
                 "suggested_solution" : com.suggested_solution
             }
         }
-    return {"error": "Complaint not found"}
+    raise HTTPException(
+    status_code=404,
+    detail="Complaint not found"
+)
 
 @app.get("/users")
 def get_users():
@@ -116,7 +119,10 @@ def get_user(user_id:int):
                 "role": c.role,
             }
         }
-    return {"error": "User not found"}  
+    raise HTTPException(
+    status_code=404,
+    detail="User not found"
+)
   
 @app.post("/complaints")
 def create_complaint(complaint: ComplaintCreate):
@@ -184,7 +190,10 @@ def update_complaint(complaint_id: int, complaint: ComplaintUpdate):
                     "message":"Complaint updated successfully",
             }
     session.close()
-    return {"error":"Complaint not found"}
+    raise HTTPException(
+    status_code=404,
+    detail="Complaint not found"
+)
 
 @app.put("/users/{user_id}")
 def update_user(user_id : int , user: UserUpdate):
@@ -206,7 +215,10 @@ def update_user(user_id : int , user: UserUpdate):
                     "message":"User updated successfully",
             }
     session.close()
-    return {"error":"User not found"}
+    raise HTTPException(
+    status_code=404,
+    detail="User not found"
+)
 
 @app.delete("/complaints/{complaint_id}")
 def delete_complaint(complaint_id: int):
@@ -221,7 +233,10 @@ def delete_complaint(complaint_id: int):
                 "message":"Complaint deleted successfully"
             }
     session.close()
-    return {"error":"Complaint not found"}
+    raise HTTPException(
+    status_code=404,
+    detail="Complaint not found"
+)
 
 @app.delete("/users/{user_id}")
 def delete_user(user_id:int):
@@ -236,4 +251,57 @@ def delete_user(user_id:int):
             "message":"User deleted successfully"
         }
     session.close()
-    return {"error":"User not found"}
+    raise HTTPException(
+    status_code=404,
+    detail="User not found"
+)
+
+@app.get("/users/{user_id}/complaints")
+def get_users_complaint(user_id:int):
+    session = Sessionlocal()
+    que = session.query(User)
+    use = que.filter(User.id == user_id).first()
+    res = []
+    if use is not None:
+        com = use.complaints
+        for c in com:
+            res.append({
+                "id": c.id,
+                "title": c.title,
+                "description": c.description,
+                "status": c.status,
+                "category": c.category,
+                "priority": c.priority,
+                "user_id": c.user_id,
+                "created_at": c.created_at,
+                "suggested_solution" : c.suggested_solution
+            })  
+        session.close()
+        return {"complaints":res}
+    session.close()
+    raise HTTPException(
+    status_code=404,
+    detail="User not found"
+)   
+
+@app.get("/complaints/{complaint_id}/user")
+def get_complaint_user(complaint_id:int):
+    session = Sessionlocal()
+    que=session.query(Complaint)
+    com = que.filter(Complaint.id == complaint_id).first()
+    if com is not None:
+        use = com.user
+        session.close()
+        return {
+                "user": {
+                    "id": use.id,
+                    "name": use.name,
+                    "email": use.email,
+                    "role": use.role,
+            }
+        }   
+    session.close()
+    raise HTTPException(
+    status_code=404,
+    detail="Complaint not found"
+)
