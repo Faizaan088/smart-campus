@@ -1,106 +1,59 @@
-from fastapi import FastAPI , HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI , HTTPException , Depends
+from pydantic import BaseModel, EmailStr
 from typing import Optional
 import datetime
 from database import engine ,Base ,Sessionlocal
 import models
 from models import User , Complaint , Resource , Booking 
 from enum import Enum 
+from auth import *
+from schemas import *
+from pydant import *
+from fastapi import Depends
+from auth import get_current_user
+from fastapi.security import OAuth2PasswordRequestForm
+
 Base.metadata.create_all(bind=engine)
 
-class ComplaintStatus(str , Enum):
-    PENDING      = "pending"
-    OPEN         = "open"
-    IN_PROGRESS  = "in_progress"
-    RESOLVED     = "resolved"
-    REOPENED     = "reopened"
-    REJECTED     = "rejected"
-
-class ComplaintCategory(str , Enum):
-    IT_CSE = "IT/CSE"
-    ELECTRICAL = "Electrical"
-    MECHANICAL = "Mechanical"
-    CIVIL = "Civil"
-    HOSTEL = "Hostel"
-    LIBRARY = "Library"
-    ADMINISTRATION = "Administration"
-    OTHER = "Other"
-
-class ComplaintPriority(str , Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
-
-class UserRole(str , Enum):
-    STUDENT = "student"
-    ADMIN = "admin"
-
-class ResourceStatus(str , Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    RETURNED = "returned"
-
-class ComplaintCreate(BaseModel):
-    title: str
-    description: str
-    user_id : int
-    suggested_solution: Optional[str] = None
-
-class ComplaintUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    user_id : Optional[int] = None
-    suggested_solution: Optional[str] = None
-    status: Optional[ComplaintStatus] = None
-    category : Optional[ComplaintCategory] = None
-    priority : Optional[ComplaintPriority] = None
-
-class UserCreate(BaseModel):
-    name : str
-    email : str
-    password : str   
-    role : UserRole
-
-class UserUpdate(BaseModel):
-    name : Optional[str] = None
-    email : Optional[str] = None
-    password : Optional[str] = None
-    role : Optional[UserRole] = None
-
-class ResourceCreate(BaseModel):
-    name : str
-    type : str
-    available_quantity : int
-
-class ResourceUpdate(BaseModel):
-    name : Optional[str] = None
-    type : Optional[str] = None
-    available_quantity : Optional[int] = None
-
-class BookingCreate(BaseModel):
-    user_id : int
-    resource_id : int
-    purpose : str
-    remark : str
-    booking_date : str
-    time_slot : str
-
-class BookingUpdate(BaseModel):
-    user_id : Optional[int] = None
-    resource_id : Optional[int] = None
-    status : Optional[ResourceStatus] = None
-    purpose : Optional[str] = None
-    remark : Optional[str] = None
-    booking_date : Optional[str] = None
-    time_slot : Optional[str] = None
-
 app=FastAPI()
+
+@app.get("/me")
+def get_me(current_user = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "role": current_user.role
+    }
 
 @app.get("/")
 def home():
     return {"message":"Welcome to the Smart Campuse Management System"}
+
+@app.post("/login")
+def login(form_data =Depends(OAuth2PasswordRequestForm) ):
+    session = Sessionlocal()
+    que = session.query(User)
+    use = que.filter(User.email == form_data.username).first()
+    if use is not None:
+        if verifypassword(form_data.password , use.password):
+            token = create_access_token(use.id,use.role)
+            session.close()
+            return {
+                    "access_token": token,
+                    "token_type": "bearer"
+                    }
+        else:
+            session.close()
+            raise HTTPException(
+                status_code=401,
+                detail="wrong password"   
+            )
+    else:
+        session.close()
+        raise HTTPException(
+            status_code = 401,
+            detail = "wrong email"
+        )
 
 @app.get("/complaints")
 def get_complaints():
@@ -185,12 +138,20 @@ def get_user(user_id:int):
 )
   
 @app.post("/complaints")
-def create_complaint(complaint: ComplaintCreate):
+def create_complaint(complaint: ComplaintCreate , current_user = Depends(get_current_user)):
     session = Sessionlocal()
+    que = session.query(User)
+    use = que.filter(User.id == current_user.id).first()
+    if use is None:
+        session.close()
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"   
+        )
     new_complaint = Complaint(
         title = complaint.title,
         description = complaint.description,
-        user_id = complaint.user_id,
+        user_id = current_user.id,
         status = "pending",
         category = None,
         priority = None,
@@ -209,11 +170,19 @@ def create_complaint(complaint: ComplaintCreate):
 @app.post("/users")
 def create_user(user: UserCreate):
     session = Sessionlocal()
+    que = session.query(User)
+    use = que.filter(User.email == user.email).first()
+    if use is not None:
+        session.close()
+        raise HTTPException(
+            status_code = 409,
+            detail = " User with this email already exist"
+        )
     new_user = User(
         name = user.name,
         email = user.email,
-        password = user.password,
-        role = user.role
+        password = hashpassword(user.password),
+        role = "student"
     )
     session.add(new_user)
     session.commit()
@@ -225,7 +194,7 @@ def create_user(user: UserCreate):
     }
 
 @app.put("/complaints/{complaint_id}")
-def update_complaint(complaint_id: int, complaint: ComplaintUpdate):
+def update_complaint(complaint_id: int, complaint: AdminAdminComplaintUpdate):
     session = Sessionlocal()
     que = session.query(Complaint)
     com = que.filter(Complaint.id == complaint_id).first()
@@ -240,8 +209,6 @@ def update_complaint(complaint_id: int, complaint: ComplaintUpdate):
             com.category = complaint.category
         if complaint.priority is not None:
             com.priority = complaint.priority
-        if complaint.user_id is not None:
-            com.user_id = complaint.user_id
         if complaint.suggested_solution is not None:
             com.suggested_solution = complaint.suggested_solution
         session.commit()
@@ -256,18 +223,26 @@ def update_complaint(complaint_id: int, complaint: ComplaintUpdate):
 )
 
 @app.put("/users/{user_id}")
-def update_user(user_id : int , user: UserUpdate):
+def adminupdate_user(user_id : int , user: AdminUserUpdate):
     session = Sessionlocal()
     que = session.query(User)
     use = que.filter(User.id == user_id).first()
     if use:
-        if user.name:
+        if user.name is not None:
             use.name = user.name
-        if user.email:
+        if user.email is not None:
+            que = session.query(User)
+            us = que.filter(User.email == user.email).first()
+            if us is not None and us.id != use.id:
+                    session.close()
+                    raise HTTPException(
+                        status_code = 409,
+                        detail = " User with this email already exist"
+                    )
             use.email = user.email
-        if user.password:
-            use.password = user.password
-        if user.role:
+        if user.password is not None:
+            use.password = hashpassword(user.password)
+        if user.role is not None:
             use.role = user.role       
         session.commit()
         session.close()
@@ -299,10 +274,26 @@ def delete_complaint(complaint_id: int):
 )
 
 @app.delete("/users/{user_id}")
-def delete_user(user_id:int):
+def delete_user(user_id:int , admin = Depends(get_current_admin)):
     session = Sessionlocal()
     que = session.query(User)
     use = que.filter(User.id == user_id).first()
+    qu = session.query(Complaint)
+    com = qu.filter(Complaint.user_id == user_id).first()
+    if com is not None:
+        session.close()
+        raise HTTPException(
+            status_code=409,
+            detail="Conflict error"
+        )
+    q=session.query(Booking)
+    boo = q.filter(Booking.user_id == user_id).first()
+    if boo is not None:
+        session.close()
+        raise HTTPException(
+                status_code=409,
+                detail="Conflict error"
+            )        
     if use:
         session.delete(use)
         session.commit()
@@ -353,8 +344,14 @@ def get_resource(resource_id : int):
 )
 
 @app.post("/resources")
-def create_resource(resource : ResourceCreate):
+def create_resource(resource : ResourceCreate, admin = Depends(get_current_admin)):
     session = Sessionlocal()
+    if resource.available_quantity <0:
+        session.close()
+        raise HTTPException(
+            status_code = 422,
+            detail = "available_quantity<=0"
+        )
     new_resource = Resource(
         name =  resource.name ,
         type = resource.type,
@@ -365,12 +362,12 @@ def create_resource(resource : ResourceCreate):
     id = new_resource.id
     session.close()
     return {
-        "message": "Resource created successfully",
+        "message": "Resource added successfully",
         "id":id
     } 
 
 @app.put("/resources/{resource_id}")
-def update_resources(resource_id : int , resource : ResourceUpdate ):
+def update_resources(resource_id : int , resource : ResourceUpdate , admin = Depends(get_current_admin)):
     session = Sessionlocal()
     que = session.query(Resource)
     res = que.filter(Resource.id == resource_id ).first()
@@ -380,6 +377,12 @@ def update_resources(resource_id : int , resource : ResourceUpdate ):
         if resource.type is not None:
             res.type = resource.type
         if resource.available_quantity is not None:
+            if resource.available_quantity <0:
+                session.close()
+                raise HTTPException(
+                    status_code = 422,
+                    detail = "available_quantity<=0"
+                )
             res.available_quantity = resource.available_quantity
         session.commit()
         session.close()
@@ -393,10 +396,19 @@ def update_resources(resource_id : int , resource : ResourceUpdate ):
 )
 
 @app.delete("/resources/{resource_id}")
-def delete_resource(resource_id : int):
+def delete_resource(resource_id : int, admin = Depends(get_current_admin)):
     session = Sessionlocal()
     que = session.query(Resource)
     res = que.filter(Resource.id == resource_id).first()
+    qu = session.query(Booking)
+    boo = qu.filter(Booking.resource_id == resource_id).all()
+    for b in boo:
+        if b.status == ResourceStatus.APPROVED or b.status == ResourceStatus.PENDING :
+                session.close()
+                raise HTTPException(
+                    status_code = 409,
+                    detail ="Resource has active bookings"
+                )
     if res:
         session.delete(res)
         session.commit()
@@ -455,11 +467,11 @@ def get_booking(booking_id : int):
 )
 
 @app.post("/bookings")
-def create_booking(booking : BookingCreate):
+def create_booking(booking : BookingCreate , current_user = Depends(get_current_user) ):
     session = Sessionlocal()
     que = session.query(User)
     qu = session.query(Resource)
-    use = que.filter(User.id == booking.user_id).first()
+    use = que.filter( User.id == current_user.id ).first()
     re = qu.filter(Resource.id == booking.resource_id).first()
     if use is None:
         session.close()
@@ -480,7 +492,7 @@ def create_booking(booking : BookingCreate):
             detail="Resource unavailable"
         )
     new_booking = Booking(
-        user_id = booking.user_id,
+        user_id = current_user.id,
         resource_id = booking.resource_id , 
         status = "pending" ,
         purpose = booking.purpose ,
@@ -489,31 +501,76 @@ def create_booking(booking : BookingCreate):
         time_slot = booking.time_slot
     )
     session.add(new_booking)
-    re.available_quantity-= 1
     session.commit()
     id = new_booking.id
     session.close()
     return{
-        "message" : " booking Succesfull",
-        "booking id" : id
+        "message" : " booking  requested Succesfull",
+        "booking request id" : id
     }
 
 @app.put("/bookings/{booking_id}")
-def update_booking(booking_id :int , booking : BookingUpdate):
+def update_booking(booking_id :int , booking : AdminBookingUpdate):
     session = Sessionlocal()
     que = session.query(Booking)
     boo = que.filter(Booking.id == booking_id).first()
     if boo:
         if booking.user_id is not None:
+            que = session.query(User)
+            use = que.filter(User.id == booking.user_id).first()
+            if use is None:
+                session.close()
+                raise HTTPException(
+                    status_code=404,
+                    detail="User not found"
+                )
             boo.user_id = booking.user_id
         if booking.resource_id is not None:
+            qu = session.query(Resource)
+            re = qu.filter(Resource.id == booking.resource_id).first()
+            if re is None:
+                session.close()
+                raise HTTPException(
+                    status_code=404,
+                    detail="Resource not found"
+                )
             boo.resource_id = booking.resource_id 
         if booking.status is not None:
-            boo.status = booking.status 
-            if booking.status == "reject" or booking.status == "returned" or booking.status == "pending":
-                qu =session.query(Resource)
-                re = qu.filter(Resource.id == boo.resource_id).first()
-                re.available_quantity+=1
+            old_status = boo.status
+            if booking.status == old_status:
+                session.close()
+                raise HTTPException(
+                    status_code=409,
+                    detail="Booking already has this status"
+                )
+            qu = session.query(Resource)
+            re = qu.filter(Resource.id == boo.resource_id).first()
+            if booking.status == ResourceStatus.APPROVED:
+                if old_status == ResourceStatus.APPROVED:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Booking already approved"
+                    )
+                if re.available_quantity <= 0:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Resource unavailable"
+                    )
+                re.available_quantity -= 1
+            elif booking.status == ResourceStatus.RETURNED:
+                if old_status != ResourceStatus.APPROVED:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Only approved bookings can be returned"
+                    )
+                re.available_quantity += 1
+            elif booking.status == ResourceStatus.REJECTED:
+                if old_status == ResourceStatus.RETURNED:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Returned booking cannot be rejected"
+                    )
+            boo.status = booking.status
         if booking.purpose is not None:
             boo.purpose = booking.purpose         
         if booking.remark is not None:
@@ -539,9 +596,10 @@ def delete_booking(booking_id : int):
     que = session.query(Booking)
     boo = que.filter(Booking.id == booking_id).first()
     if boo:
-        qu = session.query(Resource)
-        re = qu.filter(Resource.id == boo.resource_id).first()
-        re.available_quantity+= 1
+        if boo.status == ResourceStatus.APPROVED:
+            qu = session.query(Resource)
+            re = qu.filter(Resource.id == boo.resource_id).first()
+            re.available_quantity+= 1
         session.delete(boo)
         session.commit()
 
