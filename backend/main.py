@@ -56,7 +56,7 @@ def login(form_data =Depends(OAuth2PasswordRequestForm) ):
         )
 
 @app.get("/complaints")
-def get_complaints():
+def get_complaints(current_user = Depends(get_current_user)):
     session=Sessionlocal()
     que=session.query(Complaint)
     com=que.all()
@@ -77,7 +77,7 @@ def get_complaints():
     return {"complaints": res}
 
 @app.get("/complaints/{complaint_id}")
-def get_complaint(complaint_id:int):
+def get_complaint(complaint_id:int , current_user = Depends(get_current_user)):
     session=Sessionlocal()
     que=session.query(Complaint)
     com=que.filter(Complaint.id==complaint_id).first()
@@ -96,13 +96,14 @@ def get_complaint(complaint_id:int):
                 "suggested_solution" : com.suggested_solution
             }
         }
+    session.close()
     raise HTTPException(
     status_code=404,
     detail="Complaint not found"
 )
 
 @app.get("/users")
-def get_users():
+def admin_get_users(current_user = Depends(get_current_admin)):
     session = Sessionlocal()
     user = session.query(User)
     users = user.all()
@@ -118,7 +119,7 @@ def get_users():
     return {"users": res}
 
 @app.get("/users/{user_id}")
-def get_user(user_id:int):
+def admin_get_user(user_id:int,current_user = Depends(get_current_admin)):
     session=Sessionlocal()
     que=session.query(User)
     c=que.filter(User.id==user_id).first()
@@ -138,7 +139,12 @@ def get_user(user_id:int):
 )
   
 @app.post("/complaints")
-def create_complaint(complaint: ComplaintCreate , current_user = Depends(get_current_user)):
+def student_create_complaint(complaint: ComplaintCreate , current_user = Depends(get_current_user)):
+    if current_user.role == "admin":
+        raise HTTPException(
+            status_code = 403,
+            detail = "Unauthorized"
+        )
     session = Sessionlocal()
     que = session.query(User)
     use = que.filter(User.id == current_user.id).first()
@@ -194,23 +200,17 @@ def create_user(user: UserCreate):
     }
 
 @app.put("/complaints/{complaint_id}")
-def update_complaint(complaint_id: int, complaint: AdminAdminComplaintUpdate):
+def admin_update_complaint(complaint_id: int, complaint: AdminAdminComplaintUpdate , current_user = Depends(get_current_admin)):
     session = Sessionlocal()
     que = session.query(Complaint)
     com = que.filter(Complaint.id == complaint_id).first()
     if com:
         if complaint.status is not None:
             com.status = complaint.status
-        if complaint.title is not None:
-            com.title = complaint.title
-        if complaint.description is not None:
-            com.description = complaint.description
         if complaint.category is not None:
             com.category = complaint.category
         if complaint.priority is not None:
             com.priority = complaint.priority
-        if complaint.suggested_solution is not None:
-            com.suggested_solution = complaint.suggested_solution
         session.commit()
         session.close()
         return {
@@ -223,7 +223,7 @@ def update_complaint(complaint_id: int, complaint: AdminAdminComplaintUpdate):
 )
 
 @app.put("/users/{user_id}")
-def adminupdate_user(user_id : int , user: AdminUserUpdate):
+def admin_update_user(user_id : int , user: AdminUserUpdate , current_user = Depends(get_current_admin)):
     session = Sessionlocal()
     que = session.query(User)
     use = que.filter(User.id == user_id).first()
@@ -241,6 +241,12 @@ def adminupdate_user(user_id : int , user: AdminUserUpdate):
                     )
             use.email = user.email
         if user.password is not None:
+            if use.id != current_user.id:
+                session.close()
+                raise HTTPException(
+                    status_code = 403,
+                    detail = "unauthorized"
+                )
             use.password = hashpassword(user.password)
         if user.role is not None:
             use.role = user.role       
@@ -256,7 +262,7 @@ def adminupdate_user(user_id : int , user: AdminUserUpdate):
 )
 
 @app.delete("/complaints/{complaint_id}")
-def delete_complaint(complaint_id: int):
+def delete_complaint(complaint_id: int, current_user = Depends(get_current_admin)):
     session = Sessionlocal()
     que = session.query(Complaint)
     com = que.filter(Complaint.id == complaint_id).first()
@@ -274,7 +280,7 @@ def delete_complaint(complaint_id: int):
 )
 
 @app.delete("/users/{user_id}")
-def delete_user(user_id:int , admin = Depends(get_current_admin)):
+def admin_delete_user(user_id:int , admin = Depends(get_current_admin)):
     session = Sessionlocal()
     que = session.query(User)
     use = que.filter(User.id == user_id).first()
@@ -344,7 +350,7 @@ def get_resource(resource_id : int):
 )
 
 @app.post("/resources")
-def create_resource(resource : ResourceCreate, admin = Depends(get_current_admin)):
+def admin_create_resource(resource : ResourceCreate, admin = Depends(get_current_admin)):
     session = Sessionlocal()
     if resource.available_quantity <0:
         session.close()
@@ -367,7 +373,7 @@ def create_resource(resource : ResourceCreate, admin = Depends(get_current_admin
     } 
 
 @app.put("/resources/{resource_id}")
-def update_resources(resource_id : int , resource : ResourceUpdate , admin = Depends(get_current_admin)):
+def admin_update_resources(resource_id : int , resource : ResourceUpdate , admin = Depends(get_current_admin)):
     session = Sessionlocal()
     que = session.query(Resource)
     res = que.filter(Resource.id == resource_id ).first()
@@ -396,7 +402,7 @@ def update_resources(resource_id : int , resource : ResourceUpdate , admin = Dep
 )
 
 @app.delete("/resources/{resource_id}")
-def delete_resource(resource_id : int, admin = Depends(get_current_admin)):
+def admin_delete_resource(resource_id : int, admin = Depends(get_current_admin)):
     session = Sessionlocal()
     que = session.query(Resource)
     res = que.filter(Resource.id == resource_id).first()
@@ -423,7 +429,7 @@ def delete_resource(resource_id : int, admin = Depends(get_current_admin)):
 )   
 
 @app.get("/bookings")
-def get_bookings():
+def get_bookings(current_user = Depends(get_current_user)):
     session = Sessionlocal()
     que = session.query(Booking)
     boo = que.all()
@@ -443,7 +449,7 @@ def get_bookings():
     return {"bookings": res}
 
 @app.get("/bookings/{booking_id}")
-def get_booking(booking_id : int):
+def get_booking(booking_id : int , current_user = Depends(get_current_user)):
     session = Sessionlocal()
     que = session.query(Booking)
     boo = que.filter(Booking.id == booking_id).first()
@@ -510,21 +516,11 @@ def create_booking(booking : BookingCreate , current_user = Depends(get_current_
     }
 
 @app.put("/bookings/{booking_id}")
-def update_booking(booking_id :int , booking : AdminBookingUpdate):
+def admin_update_booking(booking_id :int , booking : AdminBookingUpdate ,current_user = Depends(get_current_admin)):
     session = Sessionlocal()
     que = session.query(Booking)
     boo = que.filter(Booking.id == booking_id).first()
     if boo:
-        if booking.user_id is not None:
-            que = session.query(User)
-            use = que.filter(User.id == booking.user_id).first()
-            if use is None:
-                session.close()
-                raise HTTPException(
-                    status_code=404,
-                    detail="User not found"
-                )
-            boo.user_id = booking.user_id
         if booking.resource_id is not None:
             qu = session.query(Resource)
             re = qu.filter(Resource.id == booking.resource_id).first()
@@ -547,11 +543,13 @@ def update_booking(booking_id :int , booking : AdminBookingUpdate):
             re = qu.filter(Resource.id == boo.resource_id).first()
             if booking.status == ResourceStatus.APPROVED:
                 if old_status == ResourceStatus.APPROVED:
+                    session.close()
                     raise HTTPException(
                         status_code=409,
                         detail="Booking already approved"
                     )
                 if re.available_quantity <= 0:
+                    session.close()
                     raise HTTPException(
                         status_code=400,
                         detail="Resource unavailable"
@@ -559,6 +557,7 @@ def update_booking(booking_id :int , booking : AdminBookingUpdate):
                 re.available_quantity -= 1
             elif booking.status == ResourceStatus.RETURNED:
                 if old_status != ResourceStatus.APPROVED:
+                    session.close()
                     raise HTTPException(
                         status_code=400,
                         detail="Only approved bookings can be returned"
@@ -566,19 +565,12 @@ def update_booking(booking_id :int , booking : AdminBookingUpdate):
                 re.available_quantity += 1
             elif booking.status == ResourceStatus.REJECTED:
                 if old_status == ResourceStatus.RETURNED:
+                    session.close()
                     raise HTTPException(
                         status_code=400,
                         detail="Returned booking cannot be rejected"
                     )
             boo.status = booking.status
-        if booking.purpose is not None:
-            boo.purpose = booking.purpose         
-        if booking.remark is not None:
-            boo.remark = booking.remark
-        if booking.booking_date is not None:
-            boo.booking_date = booking.booking_date
-        if booking.time_slot is not None: 
-            boo.time_slot = booking.time_slot
         session.commit()
         session.close()
         return {
@@ -591,7 +583,7 @@ def update_booking(booking_id :int , booking : AdminBookingUpdate):
 )        
 
 @app.delete("/bookings/{booking_id}")
-def delete_booking(booking_id : int):
+def admin_delete_booking(booking_id : int , current_user = Depends(get_current_admin)):
     session = Sessionlocal()
     que = session.query(Booking)
     boo = que.filter(Booking.id == booking_id).first()
@@ -614,35 +606,41 @@ def delete_booking(booking_id : int):
 )    
 
 @app.get("/users/{user_id}/complaints")
-def get_users_complaint(user_id:int):
+def get_users_complaint(user_id:int,current_user = Depends(get_current_user)):
     session = Sessionlocal()
     que = session.query(User)
     use = que.filter(User.id == user_id).first()
-    res = []
-    if use is not None:
-        com = use.complaints
-        for c in com:
-            res.append({
-                "id": c.id,
-                "title": c.title,
-                "description": c.description,
-                "status": c.status,
-                "category": c.category,
-                "priority": c.priority,
-                "user_id": c.user_id,
-                "created_at": c.created_at,
-                "suggested_solution" : c.suggested_solution
-            })  
+    if use is None:
         session.close()
-        return {"complaints":res}
+        raise HTTPException(
+        status_code=404,
+        detail="User not found"
+    )   
+    if use.id != current_user.id:
+        session.close()
+        raise HTTPException(
+            status_code = 403 , 
+            detail = "Unauthorized"
+        )
+    res = []
+    com = use.complaints
+    for c in com:
+        res.append({
+            "id": c.id,
+            "title": c.title,
+            "description": c.description,
+            "status": c.status,
+            "category": c.category,
+            "priority": c.priority,
+            "user_id": c.user_id,
+            "created_at": c.created_at,
+            "suggested_solution" : c.suggested_solution
+        })  
     session.close()
-    raise HTTPException(
-    status_code=404,
-    detail="User not found"
-)   
-
+    return {"complaints":res}
+  
 @app.get("/complaints/{complaint_id}/user")
-def get_complaint_user(complaint_id:int):
+def get_complaint_user(complaint_id:int,current_user = Depends(get_current_user)):
     session = Sessionlocal()
     que=session.query(Complaint)
     com = que.filter(Complaint.id == complaint_id).first()
@@ -664,7 +662,7 @@ def get_complaint_user(complaint_id:int):
 )
 
 @app.get("/resources/{resource_id}/bookings")
-def get_resources_booking(resource_id:int):
+def get_resources_booking(resource_id:int,current_user = Depends(get_current_user)):
     session = Sessionlocal()
     que = session.query(Resource)
     re = que.filter(Resource.id == resource_id).first()
@@ -691,7 +689,7 @@ def get_resources_booking(resource_id:int):
 )   
 
 @app.get("/bookings/{booking_id}/resource")
-def get_booking_resource(booking_id:int):
+def get_booking_resource(booking_id:int,current_user = Depends(get_current_user)):
     session = Sessionlocal()
     que=session.query(Booking)
     boo = que.filter(Booking.id == booking_id).first()
@@ -713,34 +711,40 @@ def get_booking_resource(booking_id:int):
 )
 
 @app.get("/users/{user_id}/bookings")
-def get_users_booking(user_id:int):
+def get_users_booking(user_id:int,current_user = Depends(get_current_user)):
     session = Sessionlocal()
     que = session.query(User)
     use = que.filter(User.id == user_id).first()
-    res = []
-    if use is not None:
-        boo = use.bookings
-        for b in boo:
-            res.append({
-                "id" : b.id,
-                "user_id" : b.user_id,
-                "resource_id" : b.resource_id,
-                "status" : b.status , 
-                "purpose" : b.purpose ,
-                "remark" : b.remark ,
-                "booking_date" : b.booking_date ,
-                "time_slot" : b.time_slot
-            })  
+    if use is None:
         session.close()
-        return {"bookings":res}
+        raise HTTPException(
+        status_code=404,
+        detail="User not found"
+    ) 
+    if use.id != current_user.id:
+        session.close()
+        raise HTTPException(
+            status_code = 403 , 
+            detail = "Unauthorized"
+        )
+    res = []
+    boo = use.bookings
+    for b in boo:
+        res.append({
+            "id" : b.id,
+            "user_id" : b.user_id,
+            "resource_id" : b.resource_id,
+            "status" : b.status , 
+            "purpose" : b.purpose ,
+            "remark" : b.remark ,
+            "booking_date" : b.booking_date ,
+            "time_slot" : b.time_slot
+        })  
     session.close()
-    raise HTTPException(
-    status_code=404,
-    detail="User not found"
-)   
+    return {"bookings":res} 
 
 @app.get("/bookings/{booking_id}/user")
-def get_booking_user(booking_id:int):
+def get_booking_user(booking_id:int,current_user = Depends(get_current_user)):
     session = Sessionlocal()
     que=session.query(Booking)
     boo = que.filter(Booking.id == booking_id).first()
@@ -760,3 +764,156 @@ def get_booking_user(booking_id:int):
     status_code=404,
     detail="Booking not found"
 )
+
+@app.get("/student/profile")
+def get_student_profile(current_user = Depends(get_current_user)):
+    if current_user.role != "student":
+        raise HTTPException(
+            status_code = 403,
+            detail = "unauthorized"
+        )
+    return {
+        "user": {
+            "id": current_user.id,
+            "name": current_user.name,
+        }
+    } 
+
+@app.get("/student/profile/{user_id}")
+def get_own_profile(user_id:int,current_user = Depends(get_current_user)):
+    session=Sessionlocal()
+    que=session.query(User)
+    c=que.filter(User.id==user_id).first()
+    if c is None or c.id != current_user.id :
+        session.close()
+        raise HTTPException(
+            status_code = 403,
+            detail = "unauthorized"
+        )
+    session.close()
+    if c:
+        return {
+            "user": {
+                "id": c.id,
+                "name": c.name,
+                "email": c.email,
+                "role": c.role,
+            }
+        }
+    session.close()
+    raise HTTPException(
+    status_code=404,
+    detail="User not found"
+)
+
+@app.put("/student/profile")
+def update_student_profile( user : StudentUserUpdate , current_user = Depends(get_current_user)):
+    session = Sessionlocal()
+    que = session.query(User)
+    use = que.filter(User.id == current_user.id).first()
+    if current_user.role != "student" :
+        session.close()
+        raise HTTPException(
+            status_code = 403,
+            detail = "Unauthorized"
+        )
+    if use:
+        if user.name is not None:
+            use.name = user.name
+        if user.email is not None:
+            que = session.query(User)
+            us = que.filter(User.email == user.email).first()
+            if us is not None and us.id != use.id:
+                    session.close()
+                    raise HTTPException(
+                        status_code = 409,
+                        detail = " User with this email already exist"
+                    )
+            use.email = user.email
+        if user.password is not None:
+            use.password = hashpassword(user.password)     
+        session.commit()
+        session.close()
+        return {
+                    "message":"User updated successfully",
+            }
+    session.close()
+    raise HTTPException(
+    status_code=404,
+    detail="User not found"
+)       
+
+@app.put("/student/complaint/{complaint_id}")
+def update_student_complaint(complaint_id: int ,complaint : StudentComaplaintUpdate ,current_user = Depends(get_current_user)):
+    session = Sessionlocal()
+    que = session.query(Complaint)
+    com = que.filter(Complaint.id == complaint_id).first()
+    if com is None or com.user_id != current_user.id:
+        session.close()
+        raise HTTPException(
+            status_code = 403,
+            detail = "Unauthorized"
+        )
+    if com:
+        if complaint.title is not None:
+            com.title = complaint.title
+        if complaint.description is not None:
+            com.description = complaint.description
+        if complaint.suggested_solution is not None:
+            com.suggested_solution = complaint.suggested_solution
+        session.commit()
+        session.close()
+        return {
+                    "message":"Complaint updated successfully",
+            }
+    session.close()
+    raise HTTPException(
+    status_code=404,
+    detail="Complaint not found"
+)
+
+@app.put("/student/booking/{booking_id}")
+def update_student_booking(booking_id :int , booking : StudentBookingUpdate , current_user = Depends(get_current_user)):
+    session = Sessionlocal()
+    que = session.query(Booking)
+    boo = que.filter(Booking.id == booking_id).first()
+    if boo  is None or boo.user_id != current_user.id:
+        session.close()
+        raise HTTPException(
+            status_code = 403,
+            detail = "Unauthorized"
+        )
+    if boo:
+        if booking.purpose is not None:
+            boo.purpose = booking.purpose         
+        if booking.remark is not None:
+            boo.remark = booking.remark
+        session.commit()
+        session.close()
+        return {
+                    "message":"Booking updated successfully",
+            }
+    session.close()
+    raise HTTPException(
+    status_code=404,
+    detail="Booking not found"
+) 
+
+@app.put("/admin/users/{user_id}/reset-password")
+def temp_reset_pass(user_id : int , user: AdminTempPassUpdate , current_user = Depends(get_current_admin)):
+    session = Sessionlocal()
+    que = session.query(User)
+    use = que.filter(User.id == user_id).first()
+    if use:
+        if user.password is not None:
+            use.password = hashpassword(user.password)       
+        session.commit()
+        session.close()
+        return {
+                    "message":"User updated successfully",
+            }
+    session.close()
+    raise HTTPException(
+    status_code=404,
+    detail = "User not found"
+    )   

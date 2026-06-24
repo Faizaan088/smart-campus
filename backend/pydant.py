@@ -35,6 +35,9 @@ class AdminUserUpdate(BaseModel):
     password : Optional[str] = None
     role : Optional[UserRole] = None
 
+class AdminTempPassUpdate(BaseModel):
+    password : str
+    
 class StudentUserUpdate(BaseModel):
     name : Optional[str] = None
     email : Optional[EmailStr] = None
@@ -61,10 +64,6 @@ class AdminBookingUpdate(BaseModel):
     user_id : Optional[int] = None
     resource_id : Optional[int] = None
     status : Optional[ResourceStatus] = None
-    purpose : Optional[str] = None
-    remark : Optional[str] = None
-    booking_date : Optional[str] = None
-    time_slot : Optional[str] = None
 
 class StudentBookingUpdate(BaseModel):
     resource_id : Optional[int] = None
