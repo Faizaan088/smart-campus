@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student Portal | Smart Campus</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+<div class="logo"><h2>🎓 Smart Campus</h2><span>Student Portal</span></div>
+<div class="top-actions">
+<button class="theme-toggle">🌙</button>
+<button>🔔</button>
+<span>Welcome, Student</span>
+<button id="logoutBtn">Logout</button>
+</div>
+</header>
+<div class="layout">
+<aside class="sidebar">
+<h3>MENU</h3>
+<ul>
+<li onclick="showSection('dashboard')">🏠 Dashboard</li>
+<li onclick="showSection('raiseComplaint')">📋 Raise Complaint</li>
+<li onclick="showSection('myComplaints')">📄 My Complaints</li>
+<li onclick="showSection('bookResource')">🏫 Book Resource</li>
+<li onclick="showSection('myBookings')">📅 My Bookings</li>
+<li onclick="showSection('notifications')">🔔 Notifications</li>
+<li onclick="showSection('profile')">👤 Profile</li>
+<li onclick="showSection('settings')">⚙ Settings</li>
+<li>🚪 Logout</li>
+</ul>
+</aside>
+<main class="content">
+<section id="dashboard" class="page">
+<h1>Dashboard</h1>
+<div class="stats">
+<div class="stat-card"><h3>Total Complaints</h3><h1>0</h1></div>
+<div class="stat-card"><h3>Pending</h3><h1>0</h1></div>
+<div class="stat-card"><h3>Resolved</h3><h1>0</h1></div>
+<div class="stat-card"><h3>Bookings</h3><h1>0</h1></div>
+</div>
+<div class="card"><h2>Recent Complaints</h2></div>
+<div class="card"><h2>Quick Actions</h2></div>
+</section>
+<section id="raiseComplaint" class="page" hidden><h1>Raise Complaint</h1></section>
+<section id="myComplaints" class="page" hidden><h1>My Complaints</h1></section>
+<section id="bookResource" class="page" hidden><h1>Book Resource</h1></section>
+<section id="myBookings" class="page" hidden><h1>My Bookings</h1></section>
+<section id="notifications" class="page" hidden><h1>Notifications</h1></section>
+<section id="profile" class="page" hidden><h1>Profile</h1></section>
+<section id="settings" class="page" hidden><h1>Settings</h1></section>
+</main>
+</div>
+<script src="script.js"></script>
+</body>
+</html>

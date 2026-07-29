@@ -7,7 +7,12 @@ from fastapi import Depends, HTTPException
 from database import Sessionlocal
 from models import User
 from fastapi.security import OAuth2PasswordBearer
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
+
+# Feature: Password Hash Controller Logic and Bearer Protocol Setup
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 pwd_context = CryptContext(
@@ -22,7 +27,7 @@ def hashpassword(password : str):
 def verifypassword(password : str , ha :str):
     return pwd_context.verify(password , ha )
 
-SECRET_KEY = "686c1219ccfcb5e7a299d899ca9bef569b483bb335d04980ca0ce8a5d0b2eb7e"
+SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -44,6 +49,7 @@ def decode_access_token(jwttoken : str):
                 detail="Invalid or expired token"  
             )
     
+# Feature: Session Role Enforcers and Request Resolvers
 def get_current_user(token: str = Depends(oauth2_scheme)):
     payload = decode_access_token(token)
 
@@ -66,4 +72,4 @@ def get_current_admin(user = Depends(get_current_user)):
     raise HTTPException(
         status_code = 403,
         detail = "Forbidden"
-    )       
+    )
